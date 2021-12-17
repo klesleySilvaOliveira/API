@@ -9,20 +9,17 @@
                         <div class="form-row">
                             <div class="col mb-3">
                                 <input-container-component titulo="Código do produto" id="inputCod" id-help="codHelp" texto-ajuda="Opcional. Informe o Código do produto.">
-                                    <input type="number" class="form-control" id="inputCod" aria-describedby="codHelp" placeholder="Insira aqui" v-model='busca.cod_produto'>
-                                </input-container-component>                            
-                                
-                            </div>
-                            <div class="col mb-3">
-                                <input-container-component titulo="Nome do Produto" id="inputNome" id-help="nomeHelp" texto-ajuda="Opcional. Informe o nome do produto.">
-                                    <input type="text" class="form-control" id="inputNome" aria-describedby="nomeHelp" placeholder="Insira aqui" v-model='busca.nome'>
+                                    <select class="custom-select" id="inputCod" aria-describedby="codHelp" v-model="codPesquisa">
+                                        <option value="" disabled>-- Pesquise por um Produto --</option>
+                                        <option v-for="prod in produtos" :value="prod.id" :key="prod.id">{{prod.nome_produto}}</option>
+                                    </select>
                                 </input-container-component>
                             </div>
                         </div>
                     </template>
 
                     <template v-slot:rodape>
-                        <button type="submit" class="btn btn-primary btn-sm float-right" @click="pesquisar">Pesquisar</button>
+                        <button type="submit" class="btn btn-primary btn-sm float-right" @click="pesquisar" data-toggle="modal" data-target="#modalPesquisa">Pesquisar</button>
                     </template>
                 </card-component>
                 <!-- Fim da pesquisa -->
@@ -30,11 +27,12 @@
                 <!-- Inicio dos registros -->
                 <card-component titulo="Relação de Produtos">
                     <template v-slot:conteudo>
-                        <table-products-component :dados="produtos" :atualizar="true" :remover="true" :titulos="['Codigo', 'Nome', 'Valor', 'Estoque', 'Cidade']" :cities="cidades"></table-products-component>
+                        <table-products-component :dados="produtos" :remover="true" :titulos="['Codigo', 'Nome', 'Valor', 'Estoque', 'Cidade']" :cities="cidades"></table-products-component>
                     </template>
                     <template v-slot:rodape>
                         <!-- Button trigger modal -->
                         <button type="button" class="btn btn-primary btn-sm float-right" data-toggle="modal" data-target="#modalProdutos">Adicionar</button>
+                        <button type="button" class="btn btn-danger btn-sm float-left" data-toggle="modal" data-target="#modalProdutosRemover">Remover</button>
                     </template>
                 </card-component>
                 <!-- Fim dos registros -->
@@ -85,6 +83,60 @@
                 <button type="button" class="btn btn-primary" @click="salvar()">Salvar</button>
             </template>         
         </modal-component>  
+
+        <!-- modal remoção --> 
+        <modal-component id="modalProdutosRemover" titulo="Remover Produto">
+            <template v-slot:conteudo>
+                <!-- Inicio dos inputs no modal -->
+                <div class="form-group">
+                    <input-container-component titulo="Código do produto" id="codigoRemove" id-help="codigoRemoveHelp" texto-ajuda="Obrigatório. Informe o codigo do produto.">
+                        <select class="custom-select" id="codigoRemove" aria-describedby="codigoRemoveHelp" v-model="idDelete">
+                            <option value="" disabled>-- Selecione um Produto para remover --</option>
+                            <option v-for="prod in produtos" :value="prod.id" :key="prod.id">{{prod.nome_produto}}</option>
+                        </select>
+                    </input-container-component>
+                </div>
+                <!-- Fim dos inputs no modal -->    
+            </template>
+            <template v-slot:rodape>
+                <!-- Botões no modal --> 
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" @click="remover()">Remover</button>
+            </template>         
+        </modal-component>
+        <!-- modal remoção --> 
+
+        <!-- modal pesquisa --> 
+        <modal-component id="modalPesquisa" titulo="Produto Pesquisado">
+            <template v-slot:conteudo>
+                <div>
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th scope="col">Codigo</th>
+                                <th scope="col">Nome</th>
+                                <th scope="col">Valor</th>
+                                <th scope="col">Estoque</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">{{prodPesquisado.cod_produto}}</th>
+                                <td>{{prodPesquisado.nome_produto}}</td>
+                                <td>{{prodPesquisado.valor_produto}}</td>                    
+                                <td>{{prodPesquisado.estoque}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Fim dos inputs no modal -->    
+            </template>
+            <template v-slot:rodape>
+                <!-- Botões no modal --> 
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+            </template>         
+        </modal-component>
+        <!-- modal pesquisa --> 
     </div>
 </template>
 
@@ -104,7 +156,10 @@
                 transacaoDetalhes: {},
                 produtos: [],
                 cidades: [],
-                busca: {cod_produto: '', nome: ''}
+                busca: {cod_produto: '', nome: ''},
+                idDelete: '',
+                codPesquisa: '',
+                prodPesquisado: []
             }
         },
         computed: {
@@ -120,25 +175,57 @@
             }
         },
         methods: {
+            remover (){
+                let confirmacao = confirm('Deseja realmente remover este produto?')
+
+                if(!confirmacao) return false
+
+                let config = {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': this.token
+                    }
+                }
+
+                let formData = new FormData();
+                formData.append('_method', 'delete')
+
+                let url = this.urlBase + '/' + this.idDelete
+
+                console.log(url)
+                
+                axios.post(url, formData, config)
+                    .then(response => {
+                        window.alert('Registro removido com sucesso. Atualize a página')
+                    })
+                    .catch(errors => {
+                        console.log('Houve um erro', errors)
+                    })
+            },
+
             pesquisar(){
+                if(this.codPesquisa == ''){
+                    window.alert('é necessário selecionar um produto antes')
+                    return false
+                }
 
-                let filtro = ''
+                let url = this.urlBase + '/' + this.codPesquisa
 
-                for(let chave in this.busca){
-                    if(this.busca[chave]){
-                        if(filtro != ''){
-                            filtro += ";"
-                        }
-                        filtro += chave + ':like:' + this.busca[chave]
-                    }                    
+                let config = {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': this.token
+                    }
                 }
-                if(filtro != ''){
-                    this.urlFiltro = '&filtro='+filtro
-                }
-                else{
-                    this.urlFiltro = ''
-                }
-                this.carregarLista()                
+
+                axios.get(url, config)
+                    .then(response => {
+                        this.prodPesquisado = response.data
+                    })
+                    .catch(errors => {
+                        console.log(errors)
+                    })
+                
             },
             carregarLista(){
                 
@@ -148,7 +235,7 @@
                         'Authorization': this.token
                     }
                 }
-                let url = this.urlBase + '?' + this.urlFiltro
+                let url = this.urlBase
 
                 axios.get(url, config)
                     .then(response => {
